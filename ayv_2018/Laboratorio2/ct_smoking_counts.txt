@@ -1,0 +1,8 @@
+\begin{tabular}{lrrrr}
+\toprule
+{} &  current smoker &  former smoker &  never smoked &  tried smoking \\
+\midrule
+female &              70 &             70 &            86 &            176 \\
+male   &              48 &             45 &            59 &            120 \\
+\bottomrule
+\end{tabular}

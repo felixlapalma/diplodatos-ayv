@@ -1,0 +1,8 @@
+\begin{tabular}{lrrr}
+\toprule
+{} &  drink a lot &  never drink &  social drinker \\
+\midrule
+female &     0.184080 &     0.099502 &        0.716418 \\
+male   &     0.290441 &     0.121324 &        0.588235 \\
+\bottomrule
+\end{tabular}
