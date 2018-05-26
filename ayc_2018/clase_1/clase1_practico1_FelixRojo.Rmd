@@ -1,0 +1,146 @@
+---
+title: "Clase 1 - Practico 1"
+author: "Felix Rojo Lapalma"
+date: "11 de mayo de 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+***
+## Ejercicios:
+
+Visualizacion es una herramienta muy importante para la generacion de intuicion, pero
+raramente uno tiene los datos en la forma necesaria. Frecuentemente se necesitara 
+crear nuevas variables o simplemente reordenarlas.
+
+Exploraremos ahora la manipulacion basica utilizando un conjunto de datos sobre los
+vuelos en Nueva York en 2013.
+
+```{r echo=TRUE}
+library(nycflights13)
+fligths<-nycflights13::flights
+fligths
+```
+
+***
+
+## Practico 1: Entregar un Rmd donde se encuentren todos los vuelos que:
+
+- Que arribaron con un retraso de mas de dos horas.
+- Volaron hacia Houston (IAH o HOU)
+- Fueron operados por United, American o Delta.
+- Salieron en Verano (Julio, Agosto y Septiembre)
+- Arrivaron mas de dos horas tarde, pero salieron bien.
+- Salieron entre medianoche y las 6 am.
+
+
+***
+
+Revisamos un poco el dataframe. Empezamos con un summary.
+```{r echo=FALSE}
+summary(flights)
+```
+## Arribo con retraso > 120 min
+
+De [nycflights13](http://github.com/hadley/nycflights13) tenemos que el retraso lo podemos encontrar en unidades de *[minutos]* bajo la columna *arr_delay* del dataframe. Asimismo del _summary_ observamos que tenemos `r summary(fligths['arr_delay'])[7]`. Podriamos reemplazarlos por los valores medios sin embargo observemos que la cantidad constituye un `r (sum(is.na(fligths['arr_time']))/NROW(flights))*100` % por lo cual vamos a no considerarlos simplemente. Entonces, buscamos aquellos que arribaron con un retraso de mas de dos horas, es decir la condición es que arr_delay>120
+
+```{r echo=FALSE}
+flightsdelayed2hs_1=flights[fligths$arr_delay>120,]
+flightsdelayed2hs_1
+```
+
+Esta ultima forma no parece correcta puesto se ve en forma explicita que no desechamos los *NAs*. Alternativamente hacemos [Ref2](https://stackoverflow.com/questions/24020784/numeric-comparisons-with-na-values-causing-bad-subsets-in-r)
+
+```{r echo=TRUE}
+flightsdelayed2hs_2=subset(flights,arr_delay>120)
+flightsdelayed2hs_2
+```
+Esta ultima parece correcta en cuanto subset descuenta por defecto los casos con NA. Alternativamente de [Ref3](https://stackoverflow.com/questions/11254524/omit-rows-containing-specific-column-of-na)
+
+```{r echo=TRUE}
+completeFun <- function(data, desiredCols) {
+  completeVec <- complete.cases(data[, desiredCols])
+  return(data[completeVec, ])
+}
+flightsdelayed2hs_int=completeFun(flights,'arr_delay')
+flightsdelayed2hs_3=flightsdelayed2hs_int[flightsdelayed2hs_int$arr_delay>120,]
+flightsdelayed2hs_3
+```
+
+Estas ultimas formas vemos que dan los resultados requeridos. Tenemos un total de `r NROW(flightsdelayed2hs_3)` vuelos que sufrieron el retraso mencionado.
+
+## Volaron hacia Houston (IAH o HOU)
+
+Buscamos aquellos vuelos con *dest* = IAH o HOU.
+```{r echo=TRUE}
+toHouston=flights[flights$dest=='IAH' | flights$dest=='HOU',]
+toHouston
+```
+Tenemos entonces `r NROW(toHouston)` vuelos entrantes.
+
+## Fueron operados por United, American o Delta.
+
+Tenemos que encontrar los codigos que corresponden a cada carrier. Nuevamente de [nycflights13](http://github.com/hadley/nycflights13)
+
+```{r echo=TRUE}
+carriers<-nycflights13::airlines
+carriers
+carriers[grepl("United", carriers$name) | grepl("American", carriers$name) | grepl("Delta", carriers$name) ,]
+```
+Buscamos aquellos que cumplan con el *carrier name* encontrado para cada caso.
+
+
+```{r echo=TRUE}
+carriersmatch=flights[flights$carrier=='AA' | flights$carrier=='DL'| flights$carrier=='UA',]
+carriersmatch
+```
+Entre  las tres operaron `r NROW(carriersmatch)` vuelos.  
+
+## Salieron en Verano (Julio, Agosto y Septiembre)
+
+Para esto podriamos usar la informacion de *month*
+
+```{r}
+flight_month=completeFun(flights,'month')
+flight_summer=flight_month[flight_month$month>=7  & flight_month$month<=9,];
+flight_summer
+```
+En esta condicion estamos utilizando explicitamente el mes y no las horas. Podria ocurrir el caso que se informe,por ejemplo, mes de septiembre fecha 30 y hora de salida 2359 pero que ese caso sufra un delay con lo cual podria tener que ser removido del set. Esa condicion la revisamos mas adelante.
+
+## Arrivaron mas de dos horas tarde, pero salieron bien.
+
+```{r}
+flight_dep_delay_arr_delay=completeFun(flights,c("dep_delay", "arr_delay"))
+flight_dep_delayOK_arr_delay_Fail=flight_dep_delay_arr_delay[flight_dep_delay_arr_delay$dep_delay==0 & flight_dep_delay_arr_delay$arr_delay>120,];
+flight_dep_delayOK_arr_delay_Fail
+```
+Tenemos entonces  `r nrow(flight_dep_delayOK_arr_delay_Fail)`  casos.
+
+## Salieron entre medianoche y las 6 am.
+
+Para esta situacion ampliamos el dataframe calculando el deptime a seg y seguidamente ampliamos el campo a time_hour
+
+```{r}
+flight_dep_time=completeFun(flights,c('dep_time'))
+flight_dep_time$dep_real <-flight_dep_time$time_hour+flight_dep_time$dep_delay*60+flight_dep_time$minute*60
+flight_dep_time
+```
+
+Y el set que buscamos es:
+
+```{r}
+flight_zero_to_six <- subset(flight_dep_time, format(flight_dep_time$dep_real, '%H') %in% c('00', '01', '02', '03', '04','05','06'))
+```
+
+### Revisemos nuevamente aquellos casos que salieron en verano
+
+Revisemos nuevamente los meses de la actividad anterior 
+
+```{r}
+flight_summer_2 <- subset(flight_dep_time, format(flight_dep_time$dep_real, '%m') %in% c('07', '08', '09'))
+```
+Es decir que en la instancia anterior contamos `r nrow(flight_summer)-nrow(flight_summer_2)` casos de mas.
+

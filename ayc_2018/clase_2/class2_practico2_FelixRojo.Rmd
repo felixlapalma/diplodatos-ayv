@@ -1,0 +1,313 @@
+---
+title: "Clase 2  - Practico 2"
+author: "Felix Rojo Lapalma"
+date: "16 de Mayo de 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+***
+## Practico 2: Entregar un Rmd donde se:
+
+- Elija un dataset clasificado de su preferencia y area (domain expertise), aplique un metodo de clustering y/o mixtura de Gaussianas en el mismo.
+
+- Investigue los resultados en el meta parametro $K$ numero de cumulos e investigue posibles procesos de seleccion del mismo.
+
+- Elabore un resumen, y selecione un mejor valor segun el/los criterios aplicados, discuta el significado de los cumulos
+encontrados. 
+
+- Comente la influencia de la normalizacion de los datos en los resultados del clustering.
+
+
+## Empecemos
+
+### Sobre el data-set
+
+El mismo comprende una serie de mediciones sobre ciertos instrumentos pertenecientes a una plataforma satelital. En las mismas se mezclan voltajes, temperaturas,corrientes y demas variables de interes para la plataforma. Las mismas corresponden a un valor medio diario comenzando en el Doy (day of year) 321 del año 2014. En el mismo no existen variables categoricas, por lo que en virtud del practico las generaremos. Adicionalmente crearemos algunos features adicionales.
+Las variables que consideraremos de interes particular para el analisis son "AXX0044" y "AXX0045".
+
+
+```{r}
+# Definimos algunas funciones auxiliares
+diff_same_size <- function(x) {
+  return (diff(c(x[1],x),1))
+}
+
+#https://www.esrl.noaa.gov/gmd/grad/neubrew/Calendar.jsp?view=DOY&year=2018&col=4
+#Spring starts September 1 and ends November 30;
+#Summer starts December 1 and ends February 28 (February 29 in a Leap Year);
+#Fall   (autumn) starts March 1 and ends May 31; and
+#Winter starts June 1 and ends August 31;
+# Consideramos todos los años como bisiestos. Las Temporadas descriptas corresponden a las estaciones
+# en el hemisferio sur.
+season_south_doy <-function(x){
+if (x>=244 & x<=334) {
+s='spring'
+}
+if (x>60 & x<=151) {
+s='fall'
+}  
+  
+  if (x>=152 & x<=243) {
+s='winter'
+  }
+  
+  if (x>=335 | x<=60) {
+s='summer'
+  }
+  
+  return (s)
+}
+
+season_north_doy <-function(x){
+if (x>=244 & x<=334) {
+s='fall'
+}
+if (x>60 & x<=151) {
+s='spring'
+}  
+  
+  if (x>=152 & x<=243) {
+s='summer'
+  }
+  
+  if (x>=335 | x<=60) {
+s='winter'
+  }
+  
+  return (s)
+}
+
+
+# De la clase 2
+normalize <- function(x) {
+  return ((x-min(x))/(max(x)-min(x)))
+}
+```
+
+
+### Cargamos el data set
+
+```{r}
+box_data=read.csv('sat1_20141101000000_20180331000000_FULLASCII_mean.txt')
+```
+
+```{r}
+# Generamos algunas medidas adicionales
+box_data['year_doy']<-box_data$Year+box_data$Doy/366
+#
+box_data['AXX0045_diff']<-diff_same_size(box_data$AXX0045)
+#
+box_data['AXX0045_sat']<-box_data$AXX0045
+box_data[box_data$AXX0045_sat>22,'AXX0045_sat']<-25
+box_data[box_data$AXX0045_sat<16,'AXX0045_sat']<-16
+#
+box_data['AXX0045_sat_diff']<-diff_same_size(box_data$AXX0045_sat)
+#
+box_data_n<-as.data.frame(lapply(box_data[1:124], normalize))
+#
+box_data['season_south'] <- as.character(lapply(box_data[,c('Doy')],season_south_doy))
+#
+box_data['season_north'] <- as.character(lapply(box_data[,c('Doy')],season_north_doy))
+#
+box_data['season_south_num']<- sapply(box_data$season_south,switch,"summer"=1,"fall"=2,"winter"=3,"spring"=4)
+#
+box_data['season_north_num']<- sapply(box_data$season_north,switch,"summer"=1,"fall"=2,"winter"=3,"spring"=4)
+```
+
+Algunos comentarios respecto a las medidas adicionales generadas (no seran utilizadas todas necesariamente):
+
+-box_data['year_doy']: corresponde a la fecha en formato ####.### donde la parte decimal corresponde a la fraccion del año (se considero que un año 
+tiene 366 dias lo cual no es correcto -salvo bisiestos- pero es una aproximación que utilizamos por simplicidad). 
+
+-box_data['TM_diff']: corresponde al diff de una dada variable donde se incluye el punto inicial repetido para tener un vector del mismo tamaño de 
+entrada, a la salida.
+
+-box_data['season_south']: correponde a la variable categorica season (hemisferio sur - basado en el doy de entrada).
+
+-box_data['season_north']: correponde a la variable categorica season (hemisferio norte - basado en el doy de entrada).
+
+-box_data['season_south_num']: correponde a la variable numerica season (hemisferio sur - basado en el doy de entrada).
+
+-box_data['season_north_num'] correponde a la variable numerica season (hemisferio norte - basado en el doy de entrada).
+
+
+### Inspección preliminar
+
+Hagamos algunos plots temporales para ver el comportamiento de las variables en cuestion.
+
+```{r}
+#
+plot(box_data$year_doy,box_data$AXX0045,xlab ='Time[Year]',ylab='Temp[deg C]')
+#
+plot(box_data$year_doy,box_data$AXX0045_sat_diff,xlab ='Time[Year]',ylab='Delta Temp[deg C]')
+#
+plot(box_data$year_doy,box_data$AXX0044,xlab ='Time[Year]',ylab='Volt[V]')
+#
+x <- box_data$AXX0045
+y <- box_data$AXX0044
+regline <- lm(y~x)
+plot(x,y,xlab ='Temp[deg C]',ylab='Volt[V]')
+abline(regline,lwd=2,col=2)
+points(mean(x),mean(y),col=3,pch=20,cex=3)
+#
+plot(box_data$AXX0045,box_data$AXX0045_sat_diff,xlab ='Temp[deg C]',ylab='Delta Temp[deg C]')
+#
+plot(box_data$Doy,box_data$AXX0045_sat_diff,xlab ='Temp[?C]',ylab='Delta Temp[deg C]')
+#
+plot(box_data$year_doy,box_data$season_south_num,xlab ='Time[Year]',ylab='Season',col=2)
+par(new=TRUE)
+plot(box_data$year_doy,box_data$season_north_num,xlab ='Time[Year]',ylab='Season',col=3)
+legend(2016.5,2.5 , legend=c("Season South", "Season North"),
+       col=c("red", "green"),lty=1:2, cex=0.8,title ='summer=1/fall=2/winter=3/spring=4')
+```
+
+Por la distribución de los valores parece ser que el mencionado instrumento "vive con las estaciones del hemisferio norte" (basicamente es su ubicacion sobre la plataforma). Asimismo observamos que se replica la forma funcional de la temperatura con la correspondiente al voltaje. Inclusive la relación entre ellas es quasi-lineal (basados en el grafico 4).
+
+
+### Enfoque K-means
+
+El enfoque en terminos de kmeans y su parametro k tendra que ver con lo que querramos analizar. Particularmente estamos interesados en ver que se puede decir de los valores alcanzados por la temperatura, el voltage asociado y su estacionalidad. Para ellos construimos clusters de tamaño 2, 3 y 4.
+
+```{r echo=TRUE}
+set.seed(20)
+AXX0045AXX0044_cl_k2 <- kmeans(box_data_n[, c('AXX0045','AXX0044')], 2, nstart = 20)
+AXX0045AXX0044_cl_k3 <- kmeans(box_data_n[, c('AXX0045','AXX0044')], 3, nstart = 20)
+AXX0045AXX0044_cl_k4 <- kmeans(box_data_n[, c('AXX0045','AXX0044')], 4, nstart = 20)
+
+```
+
+```{r echo=TRUE}
+# Not Scaled
+AXX0045AXX0044_cl_k2_Nnorm <- kmeans(box_data[, c('AXX0045','AXX0044')], 2, nstart = 20)
+AXX0045AXX0044_cl_k3_Nnorm <- kmeans(box_data[, c('AXX0045','AXX0044')], 3, nstart = 20)
+AXX0045AXX0044_cl_k4_Nnorm <- kmeans(box_data[, c('AXX0045','AXX0044')], 4, nstart = 20)
+```
+
+
+```{r}
+print('Scaled')
+table(AXX0045AXX0044_cl_k2$cluster, box_data$season_north)
+table(AXX0045AXX0044_cl_k3$cluster, box_data$season_north)
+table(AXX0045AXX0044_cl_k4$cluster, box_data$season_north)
+```
+
+```{r}
+print('Not Scaled')
+# Not Norm
+table(AXX0045AXX0044_cl_k2_Nnorm$cluster, box_data$season_north)
+table(AXX0045AXX0044_cl_k3_Nnorm$cluster, box_data$season_north)
+table(AXX0045AXX0044_cl_k4_Nnorm$cluster, box_data$season_north)
+
+```
+De las segmentaciones para k=2,3,4 vemos que esencialmente uno de los clusters se mantiene sin cambios y los restantes empiezan a pasarse los integrantes. A priori hubiera esperado que summer y winter se mantengan esencialmente fijos y la transferencia de informacion se hubiera dado entre fall y spring. 
+
+En el caso de usar las variables sin escalarlas, la distribucion alcanzada no es la misma (segun se aprecia numericamente a partir de las tablas - con exepcion de winter).
+
+```{r}
+library(ggplot2)
+AXX0045AXX0044_cl_k2$cluster <- as.factor(AXX0045AXX0044_cl_k2$cluster)
+ggplot(box_data, aes( AXX0045,AXX0004, color = AXX0045AXX0044_cl_k2$cluster)) + geom_point()
+
+AXX0045AXX0044_cl_k3$cluster <- as.factor(AXX0045AXX0044_cl_k3$cluster)
+ggplot(box_data, aes( AXX0045,AXX0004, color = AXX0045AXX0044_cl_k3$cluster)) + geom_point()
+
+AXX0045AXX0044_cl_k4$cluster <- as.factor(AXX0045AXX0044_cl_k4$cluster)
+ggplot(box_data, aes( AXX0045,AXX0004, color = AXX0045AXX0044_cl_k4$cluster)) + geom_point()
+```
+
+Para la información que queremos recolectar una segmentacion en K>3 no parece brindar informacion extra, en terminos de estacionalidad por ejemplo. Podriamos distinguir en modo global summer y winter y un mix de fall y spring pero no mas. En este caso la selección del parametro k surge de intentar utilizar la menor complejidad para explicar un set de datos (sumado al conocimiento de los mismos, etc). A priori podriamos haber sugerido que el set ideal de cumulos hubiera sido 4, este sale de asociar una dada evolucion a la estacion en curso, pero la seleccion de features utilizado para caracterizar el problema no parece favorecer esta eleccion.
+
+```{r}
+print("Not - Scaled")
+AXX0045AXX0044_cl_k2_Nnorm$cluster <- as.factor(AXX0045AXX0044_cl_k2_Nnorm$cluster)
+ggplot(box_data, aes( AXX0045,AXX0004, color = AXX0045AXX0044_cl_k2_Nnorm$cluster)) + geom_point()
+
+AXX0045AXX0044_cl_k3_Nnorm$cluster <- as.factor(AXX0045AXX0044_cl_k3_Nnorm$cluster)
+ggplot(box_data, aes( AXX0045,AXX0004, color = AXX0045AXX0044_cl_k3_Nnorm$cluster)) + geom_point()
+
+AXX0045AXX0044_cl_k4_Nnorm$cluster <- as.factor(AXX0045AXX0044_cl_k4_Nnorm$cluster)
+ggplot(box_data, aes( AXX0045,AXX0004, color = AXX0045AXX0044_cl_k4_Nnorm$cluster)) + geom_point()
+```
+
+Para el caso no escalado vemos que la distribucion es similar pero cambia la composicion de los cumulos (en sintonia con los valores numericos encontrados con antelacion).
+
+Hagamos unas pruebas con **mclust**. Veamos que diferencias encontramos con kmeans.
+
+```{r}
+library(mclust)
+mcl.model_k2 <- Mclust(box_data[, c('AXX0045','AXX0044')], 2)
+# Graficamos
+plot(mcl.model_k2, what = "classification", main = "Mclust Classification")
+```
+
+A diferencia de kmeans para k=2 la distribucion de cumulos no parece simetrica.
+
+```{r}
+library(mclust)
+mcl.model_k3 <- Mclust(box_data[, c('AXX0045','AXX0044')], 3)
+# Graficamos
+plot(mcl.model_k3, what = "classification", main = "Mclust Classification")
+```
+
+Para k=3 parece similar a kmeans. Veamos k=4,
+
+```{r}
+library(mclust)
+mcl.model_k4 <- Mclust(box_data[, c('AXX0045','AXX0044')], 4)
+# Graficamos
+plot(mcl.model_k4, what = "classification", main = "Mclust Classification")
+```
+En esta caso se diferencia nuevamente en cuanto una de las elipses parece desplazarse respecto a la linea de tendencia central.
+
+*En cualquiera de los casos no logramos diferenciar la estacionalidad o marcarla en forma efectiva. Esto no es un defecto del algoritmo, sino que los features pueden no haber sido los adecuados.*
+
+Intentamos ver que pasa si seleccionamos el Doy y la temperatura (no deberia observarse una diferencia con el voltaje dada la relacion ya establecida).
+Esto a priori puede resultar trivial puesto que estamos justamente caracterizando una estacion usando fechas, pero igualmente veamos como responden los algoritmos, usamos kMeans para probar.
+
+
+```{r echo=TRUE}
+set.seed(20)
+DOYAXX0045_cl_k2 <- kmeans(box_data_n[, c('Doy','AXX0045')], 2, nstart = 20)
+DOYAXX0045_cl_k3 <- kmeans(box_data_n[, c('Doy','AXX0045')], 3, nstart = 20)
+DOYAXX0045_cl_k4 <- kmeans(box_data_n[, c('Doy','AXX0045')], 4, nstart = 20)
+DOYAXX0045_cl_k5 <- kmeans(box_data_n[, c('Doy','AXX0045')], 5, nstart = 20)
+```
+
+
+```{r}
+print('Scaled Season North')
+table(DOYAXX0045_cl_k2$cluster, box_data$season_north)
+table(DOYAXX0045_cl_k3$cluster, box_data$season_north)
+table(DOYAXX0045_cl_k4$cluster, box_data$season_north)
+table(DOYAXX0045_cl_k5$cluster, box_data$season_north)
+```
+
+
+```{r}
+library(ggplot2)
+DOYAXX0045_cl_k2$cluster <- as.factor(DOYAXX0045_cl_k2$cluster)
+ggplot(box_data, aes( Doy,AXX0045, color = DOYAXX0045_cl_k2$cluster)) + geom_point()
+
+DOYAXX0045_cl_k3$cluster <- as.factor(DOYAXX0045_cl_k3$cluster)
+ggplot(box_data, aes( Doy,AXX0045, color = DOYAXX0045_cl_k3$cluster)) + geom_point()
+
+DOYAXX0045_cl_k4$cluster <- as.factor(DOYAXX0045_cl_k4$cluster)
+ggplot(box_data, aes( Doy,AXX0045, color = DOYAXX0045_cl_k4$cluster)) + geom_point()
+
+DOYAXX0045_cl_k5$cluster <- as.factor(DOYAXX0045_cl_k5$cluster)
+ggplot(box_data, aes( Doy,AXX0045, color = DOYAXX0045_cl_k5$cluster)) + geom_point()
+```
+Utilizando estos features vemos que la clasificacion parece encaminarse a partir de k=5 (k=2/3/4 no aporta nada nuevo en si-respecto a estacionalidad). Mientras
+que k=5 ya esta marcando spring y fall. Veamos que pasa con **mclust**
+
+```{r}
+library(mclust)
+mcl.model_k5 <- Mclust(box_data[, c('Doy','AXX0045')], 5)
+# Graficamos
+plot(mcl.model_k5, what = "classification", main = "Mclust Classification")
+```
+Mclust predice incluso mejor un cambio de temporada (summer-fall - hemisferio sur) pero a ambos les cuesta la salida spring-summer. Se observa que la clasificacion sigue teniendo puntos faltantes (se observan mixturas sobre todo en los cambios de temporada). Igualmente por la clase de variables involucradas las fronteras de definicion (para lo que quiere clasificar) entre clusters es difusa y no se pretende un score del 100% en la identificacion.
