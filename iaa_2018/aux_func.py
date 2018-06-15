@@ -218,11 +218,121 @@ def acc_model_pol_par(model_spec,X_train_feature,y_train,X_val_feature,y_val,
 
     return p_dict,list_train_var,list_val_var
 
+def mse_model_pol_par(model_spec,X_train_feature,y_train,X_val_feature,y_val,
+                  var_target_name,var_target_vec,
+                  var_target_name_aux,var_target_vec_aux):
+    list_train_var=[]
+    list_val_var=[]
+    p_dict={}
+    
+    for var in var_target_vec:
+        p_dict[var_target_name+'_idx_'+str(var_target_vec.index(var))]={}
+        list_train_aux=[]
+        list_val_aux=[]
+        poly_features = PolynomialFeatures(var)
+        poly_features.fit(X_train_feature)
+        X_poly_train = poly_features.transform(X_train_feature)
+        X_poly_val = poly_features.transform(X_val_feature)
+        for var_aux in var_target_vec_aux:
+                
+            model=clone(model_spec, safe=True)
+            params_upd = {var_target_name_aux:var_aux}
+            model.set_params(**params_upd)
+            model.fit(X_poly_train, y_train)
+            #p_dict[var_target_name+'_idx_'+str(var_target_vec.index(var))].update({var_target_name_aux+'_idx_'+str(var_target_vec_aux.index(var_aux)):{'model':model}})
+            mse_train=mean_squared_error(y_train, model.predict(X_poly_train))
+            mse_val=mean_squared_error(y_val, model.predict(X_poly_val))        
+            # La exactitud toma valor en el rango [0, 1] donde más alto es mejor    
+            list_train_aux.append(mse_train)
+            list_val_aux.append(mse_val)
+            p_dict[var_target_name+'_idx_'+str(var_target_vec.index(var))].update({var_target_name_aux+'_idx_'+str(var_target_vec_aux.index(var_aux)):{'mse_train':mse_train,'mse_val':mse_val,
+                                               'model':model,
+                                               'poly_features':poly_features}})
+        list_train_var.append(list_train_aux)
+        list_val_var.append(list_val_aux)
+
+    return p_dict,list_train_var,list_val_var
+
+
+
+
+def plt_reg_pol(model,poly_features,X_train_feature,X_val_feature,y_train,y_val,title_list_add):
+    plt.figure(figsize=(14, 5), dpi= 80, facecolor='w', edgecolor='k')
+
+    X_range_start = np.min(np.r_[X_train_feature, X_val_feature])
+    X_range_stop = np.max(np.r_[X_train_feature, X_val_feature])
+    y_range_start = np.min(np.r_[y_train, y_val])
+    y_range_stop = np.max(np.r_[y_train, y_val])
+    X_linspace = np.linspace(X_range_start, X_range_stop, 200).reshape(-1, 1)
+    X_linspace_poly = poly_features.transform(X_linspace)
+    
+    # Conjunto de entrenamiento
+    plt.subplot(1, 2, 1)
+    plt.scatter(X_train_feature, y_train, facecolor="dodgerblue", edgecolor="k", label="datos")
+    plt.plot(X_linspace, model.predict(X_linspace_poly), color="tomato", label="modelo")
+    plt.ylim(y_range_start, y_range_stop)
+    title0="Conjunto de Entrenamiento" + '-' + title_list_add[0]
+    plt.title(title0)
+    
+    # Conjunto de validación
+    plt.subplot(1, 2, 2)
+    plt.scatter(X_val_feature, y_val, facecolor="dodgerblue", edgecolor="k", label="datos")
+    plt.plot(X_linspace, model.predict(X_linspace_poly), color="tomato", label="modelo")
+    plt.ylim(y_range_start, y_range_stop)
+    title0="Conjunto de Validación" + '-' + title_list_add[1]
+    plt.title(title0)
+    
+    plt.show()
+
+
+
+def plt_lin_set(model,X_train_feature,X_val_feature,y_train,y_val,title_list_add):
+    plt.figure(figsize=(14, 5), dpi= 80, facecolor='w', edgecolor='k')
+
+    X_range_start = np.min(np.r_[X_train_feature, X_val_feature])
+    X_range_stop = np.max(np.r_[X_train_feature, X_val_feature])
+    y_range_start = np.min(np.r_[y_train, y_val])
+    y_range_stop = np.max(np.r_[y_train, y_val])
+    X_linspace = np.linspace(X_range_start, X_range_stop, 200).reshape(-1, 1)
+    
+    
+    # Conjunto de entrenamiento
+    plt.subplot(1, 2, 1)
+    plt.scatter(X_train_feature, y_train, facecolor="dodgerblue", edgecolor="k", label="datos")
+    plt.plot(X_linspace, model.predict(X_linspace), color="tomato", label="modelo")
+    plt.ylim(y_range_start, y_range_stop)
+    title0="Conjunto de Entrenamiento" + '-' + title_list_add[0]
+    plt.title(title0)
+    
+    # Conjunto de validación
+    plt.subplot(1, 2, 2)
+    plt.scatter(X_val_feature, y_val, facecolor="dodgerblue", edgecolor="k", label="datos")
+    plt.plot(X_linspace, model.predict(X_linspace), color="tomato", label="modelo")
+    plt.ylim(y_range_start, y_range_stop)
+    title0="Conjunto de Validación" + '-' + title_list_add[1]
+    plt.title(title0)
+    
+    plt.show()
 
 
 
 
 
-
-
-
+def mse_model_par(model_spec,X_train_feature,y_train,X_val_feature,y_val,
+                  var_target_name,var_target_vec,
+                  var_target_name_aux,var_target_vec_aux):
+    list_aux=[]
+    p_dict={}
+    for var,var_aux in zip(var_target_vec,var_target_vec_aux):
+        model=clone(model_spec, safe=True)
+        params_upd = {var_target_name:var}
+        model.set_params(**params_upd)
+        model.fit(X_train_feature, y_train)
+        p_dict[var_target_name_aux+'_idx_'+str(var_target_vec_aux.index(var_aux))]={}
+        p_dict[var_target_name_aux+'_idx_'+str(var_target_vec_aux.index(var_aux))].update({'model':model})
+        mse_train=mean_squared_error(y_train, model.predict(X_train_feature))
+        mse_val=mean_squared_error(y_val, model.predict(X_val_feature))
+        # La exactitud toma valor en el rango [0, 1] donde más alto es mejor    
+        p_dict[var_target_name_aux+'_idx_'+str(var_target_vec_aux.index(var_aux))].update({'mse_train':mse_train,'mse_val':mse_val,var_target_name:var})
+        list_aux.append([var_aux,var_target_vec_aux.index(var_aux),mse_train,mse_val])
+    return p_dict,list_aux
