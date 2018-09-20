@@ -1,0 +1,23 @@
+README
+
+Grupo: Maximiliano Vides/ Felix Rojo Lapalma
+
+En practico_1_aprendizajeprofundo.zip dejamos los scripts/nb utilizados para responder el practico_1.
+
+Una vez descomprimido el archivo debe dejarse en el mismo directorio "filtered_fastext_movie_review.pickle'
+
+ejercicio_1_NB.ipynb: en esta notebook realizamos un analisis preliminar (para ver la funcionalidad)
+
+exercise_1.py: es el esqueleto pasado para completar
+
+exercise_1_caller.py: es el archivo que contiene los casos de prueba que son instanciados por exercise_1.py
+
+exercise_2.py: es el esqueleto pasado para completar
+
+exercise_2_caller.py: es el archivo que contiene los casos de prueba que son instanciados por exercise_2.py
+
+util.py: conjunto de funciones
+
+utils.py: clase auxiliar para procesar vocabulario (ya provista).
+
+ejercicio_X_script_results.ipynb: en esta notebook mostramos los resultados de los scripts exercise_1/_2.
